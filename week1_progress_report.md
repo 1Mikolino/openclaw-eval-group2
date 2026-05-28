@@ -1,9 +1,8 @@
 # openclaw-eval-group2
-组长：黄奕曦 组员：杨文 丘仕军
 第一周
 仓库创建，websocket连接两台openclaw（小龙虾作为一个node接入大龙虾），尝试压力测试
 进行WebSocket压力测试所用到的代码如下：
-pkill -f client.js(用于大龙虾测试）
+client.js(用于大龙虾测试）
 ```bash
 const WebSocket = require('ws');
 
