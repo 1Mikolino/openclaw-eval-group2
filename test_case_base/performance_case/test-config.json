@@ -1,0 +1,27 @@
+{
+  "_comment": "OpenClaw 2GB 内存测试 - 配置文件",
+  "name": "openclaw-2gb-memory-test",
+  "description": "测试 OpenClaw 在 2GB 内存限制下的可用性",
+  
+  "target": "ws://10.0.12.4:8080",
+  "duration": 60,
+  "interval": 100,
+  "messageType": "ping",
+  
+  "reportInterval": 100,
+  "verbose": true,
+  "waitForWelcome": true,
+  "welcomeTimeout": 5000,
+  
+  "passCriteria": {
+    "minSuccessRate": 95,
+    "maxAvgLatency": 500,
+    "maxMemoryUsage": "1.5GB"
+  },
+  
+  "environment": {
+    "memoryLimit": "2GB",
+    "cpu": "2 cores",
+    "os": "Ubuntu 20.04+"
+  }
+}
