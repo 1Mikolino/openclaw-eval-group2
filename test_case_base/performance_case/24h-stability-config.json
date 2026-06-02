@@ -1,0 +1,49 @@
+{
+  "_comment": "OpenClaw 24小时稳定性测试 - 配置文件",
+  "name": "openclaw-24h-stability-test",
+  "description": "测试 OpenClaw 在24小时连续运行下的稳定性和性能一致性",
+  
+  "target": "ws://10.0.12.4:8080",
+  "duration": 86400,
+  "interval": 500,
+  "messageType": "ping",
+  
+  "reportInterval": 1000,
+  "verbose": true,
+  "waitForWelcome": true,
+  "welcomeTimeout": 5000,
+  "reconnectOnDisconnect": true,
+  "maxReconnectAttempts": 1000,
+  "reconnectInterval": 5000,
+  
+  "passCriteria": {
+    "minSuccessRate": 95,
+    "maxAvgLatency": 500,
+    "maxLatencyTrend": 1.2,
+    "memoryGrowthRateMBPerHour": 10,
+    "maxMemoryUsagePercent": 80,
+    "maxReconnectAttempts": 10
+  },
+  
+  "environment": {
+    "memory": "8GB+",
+    "cpu": "4 cores+",
+    "disk": "20GB+ free",
+    "os": "Ubuntu 20.04+",
+    "network": "stable internal"
+  },
+  
+  "monitoring": {
+    "checkInterval": 300,
+    "logMetrics": true,
+    "metricsOutputPath": "~/monitoring/metrics.json"
+  },
+  
+  "alerts": {
+    "onMemoryHigh": true,
+    "memoryThresholdPercent": 75,
+    "onLatencySpike": true,
+    "latencySpikeMultiplier": 3,
+    "onDisconnect": true
+  }
+}
