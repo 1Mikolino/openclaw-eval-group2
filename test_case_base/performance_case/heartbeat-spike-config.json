@@ -1,0 +1,31 @@
+{
+  "_comment": "OpenClaw 心跳增加后性能测试 - 检测 CPU飙升/日志风暴/Retry Storm/Gateway不可用",
+  "name": "openclaw-heartbeat-spike-test",
+  "description": "验证高频心跳场景下的系统稳定性",
+  
+  "target": "ws://10.0.12.4:8080",
+  "duration": 300,
+  "interval": 50,
+  "concurrent": 50,
+  "messageType": "ping",
+  
+  "reportInterval": 1000,
+  "verbose": true,
+  "waitForWelcome": true,
+  "welcomeTimeout": 5000,
+  "reconnectOnDisconnect": true,
+  
+  "passCriteria": {
+    "minSuccessRate": 90,
+    "maxAvgLatency": 1000,
+    "maxCpuUsage": 80,
+    "maxLogGrowthRate": 100
+  },
+  
+  "environment": {
+    "heartbeatInterval": "1000ms",
+    "cpu": "4 cores",
+    "memory": "8GB",
+    "os": "Ubuntu 20.04+"
+  }
+}
