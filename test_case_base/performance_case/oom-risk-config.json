@@ -1,0 +1,57 @@
+{
+  "_comment": "OpenClaw OOM 风险评估测试 - PERF-005",
+  "name": "openclaw-oom-risk-assessment-test",
+  "description": "评估OOM风险，验证是否满足发布要求",
+  
+  "target": "ws://10.0.12.4:8080",
+  "testType": "oom-assessment",
+  
+  "memoryConstraints": {
+    "testLimits": ["2GB", "4GB", "8GB"],
+    "pressureLevels": [50, 60, 70, 80, 85, 90, 95],
+    "burstConcurrent": [30, 50, 100],
+    "testDurationMinutes": 30
+  },
+  
+  "passCriteria": {
+    "maxAllowedOomEvents": 0,
+    "maxRssPercentOfLimit": 80,
+    "maxOomScore": 500,
+    "recoveryTimeSeconds": 60,
+    "maxGcFrequencyPerMinute": 5
+  },
+  
+  "releaseCriteria": {
+    "green": {
+      "description": "可发布",
+      "conditions": [
+        "无OOM事件",
+        "内存使用稳定在限制内",
+        "压力后能快速恢复",
+        "健康检查始终通过"
+      ]
+    },
+    "yellow": {
+      "description": "有条件发布",
+      "conditions": [
+        "偶发OOM但可恢复",
+        "已知限制和规避方案"
+      ]
+    },
+    "red": {
+      "description": "阻断发布",
+      "conditions": [
+        "频繁OOM",
+        "无法自动恢复",
+        "内存泄漏",
+        "数据丢失"
+      ]
+    }
+  },
+  
+  "environment": {
+    "memoryMonitoring": ["dmesg", "cgroup", "/proc/[pid]/status"],
+    "tools": ["stress-ng", "curl", "ps", "awk"],
+    "os": "Linux (Ubuntu 20.04+)"
+  }
+}
