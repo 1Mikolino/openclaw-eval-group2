@@ -1,0 +1,38 @@
+{
+  "_comment": "OpenClaw 内存泄漏检测测试 - PERF-004",
+  "name": "openclaw-memory-leak-detection-test",
+  "description": "检测内存泄漏、持续增长、无法回收、峰值异常等问题",
+  
+  "target": "ws://10.0.12.4:8080",
+  "duration": 3600,
+  "interval": 100,
+  "concurrent": 50,
+  "messageType": "ping",
+  
+  "reportInterval": 1000,
+  "verbose": false,
+  "waitForWelcome": true,
+  "welcomeTimeout": 5000,
+  "reconnectOnDisconnect": true,
+  
+  "memoryCheck": {
+    "monitorInterval": 30,
+    "alertThreshold": 20,
+    "criticalThreshold": 50,
+    "maxMemoryPercent": 80
+  },
+  
+  "passCriteria": {
+    "maxMemoryGrowth": 20,
+    "maxPeakMemoryPercent": 80,
+    "maxAvgLatency": 500,
+    "minSuccessRate": 95
+  },
+  
+  "environment": {
+    "memory": "4GB+",
+    "cpu": "2 cores",
+    "os": "Ubuntu 20.04+",
+    "tools": ["smem", "pmap", "bc"]
+  }
+}
