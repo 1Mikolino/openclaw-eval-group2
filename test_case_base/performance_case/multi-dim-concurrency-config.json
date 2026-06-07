@@ -1,0 +1,238 @@
+{
+  "_comment": "OpenClaw 多维度并发性能曲线测试 - 测试多用户/多会话/多插件/多消息并发的可解释性能曲线",
+  "name": "multi-dimensional-concurrency-performance-test",
+  "description": "验证系统在多维度并发压力下的性能曲线表现，识别性能拐点和饱和点",
+  
+  "test_info": {
+    "test_id": "PERF-006",
+    "priority": "P0",
+    "test_type": ["performance", "scalability", "capacity_planning"],
+    "created_date": "2026-06-07"
+  },
+  
+  "target": {
+    "gateway_url": "ws://10.0.12.4:8080",
+    "health_check_url": "http://10.0.12.4:8080/health",
+    "metrics_url": "http://10.0.12.4:8080/metrics"
+  },
+  
+  "dimensions": {
+    "user_concurrency": {
+      "description": "并发用户数测试",
+      "start_value": 10,
+      "max_value": 640,
+      "step_multiplier": 2,
+      "values": [10, 20, 40, 80, 160, 320, 640],
+      "duration_per_step": 180,
+      "recovery_interval": 30
+    },
+    "session_capacity": {
+      "description": "活跃会话数测试",
+      "start_value": 50,
+      "max_value": 1600,
+      "step_multiplier": 2,
+      "values": [50, 100, 200, 400, 800, 1600],
+      "duration_per_step": 180,
+      "heartbeat_interval_ms": 30000,
+      "recovery_interval": 30
+    },
+    "plugin_concurrency": {
+      "description": "插件并发调用测试",
+      "start_value": 5,
+      "max_value": 160,
+      "step_multiplier": 2,
+      "values": [5, 10, 20, 40, 80, 160],
+      "plugins": ["web-search", "weather", "github", "memory", "tts"],
+      "duration_per_step": 180,
+      "recovery_interval": 30
+    },
+    "message_throughput": {
+      "description": "消息吞吐量测试",
+      "start_rate": 100,
+      "max_rate": 3200,
+      "step_multiplier": 2,
+      "rates": [100, 200, 400, 800, 1600, 3200],
+      "duration_per_step": 180,
+      "concurrent_users": 50,
+      "recovery_interval": 30
+    }
+  },
+  
+  "combined_scenarios": [
+    {
+      "name": "light_load",
+      "users": 10,
+      "sessions": 50,
+      "plugins": 5,
+      "message_rate": 100,
+      "duration": 300
+    },
+    {
+      "name": "medium_load",
+      "users": 40,
+      "sessions": 200,
+      "plugins": 20,
+      "message_rate": 400,
+      "duration": 300
+    },
+    {
+      "name": "heavy_load",
+      "users": 160,
+      "sessions": 800,
+      "plugins": 80,
+      "message_rate": 1600,
+      "duration": 300
+    },
+    {
+      "name": "extreme_load",
+      "users": 320,
+      "sessions": 1600,
+      "plugins": 160,
+      "message_rate": 3200,
+      "duration": 300
+    }
+  ],
+  
+  "metrics": {
+    "latency": {
+      "p50_threshold_ms": 200,
+      "p95_threshold_ms": 500,
+      "p99_threshold_ms": 1000,
+      "max_threshold_ms": 2000
+    },
+    "throughput": {
+      "target_tps": "auto_scale",
+      "tolerance_percent": 10
+    },
+    "success_rate": {
+      "min_acceptable": 0.95,
+      "target": 0.995
+    },
+    "resources": {
+      "cpu_max_percent": 80,
+      "memory_max_percent": 85,
+      "network_bandwidth_max_percent": 80
+    },
+    "curve_interpretability": {
+      "min_r_squared": 0.85,
+      "max_inflection_undefined_region": 0.2
+    }
+  },
+  
+  "monitoring": {
+    "system_metrics_interval_sec": 5,
+    "application_metrics_interval_sec": 10,
+    "log_sampling_interval_sec": 10,
+    "metrics_to_collect": [
+      "cpu_usage",
+      "memory_usage",
+      "disk_io",
+      "network_io",
+      "openclaw_process_cpu",
+      "openclaw_process_memory",
+      "active_sessions",
+      "active_connections",
+      "message_queue_depth",
+      "plugin_execution_time"
+    ]
+  },
+  
+  "client_settings": {
+    "connection_timeout_ms": 10000,
+    "message_timeout_ms": 30000,
+    "reconnect_on_disconnect": true,
+    "max_reconnect_attempts": 3,
+    "reconnect_interval_ms": 1000,
+    "wait_for_welcome": true,
+    "welcome_timeout_ms": 5000,
+    "message_batch_size": 1,
+    "report_interval_ms": 1000,
+    "verbose_logging": true
+  },
+  
+  "message_templates": {
+    "text_message": {
+      "type": "text",
+      "content": "Performance test message at {{timestamp}}"
+    },
+    "plugin_invocation": {
+      "type": "tool_call",
+      "tool": "{{plugin_name}}",
+      "parameters": {}
+    },
+    "heartbeat": {
+      "type": "ping",
+      "timestamp": "{{timestamp}}"
+    }
+  },
+  
+  "analysis": {
+    "inflection_detection": {
+      "method": "second_derivative",
+      "sensitivity": 0.1,
+      "min_points": 5
+    },
+    "saturation_detection": {
+      "method": "growth_rate_threshold",
+      "threshold": 0.1,
+      "window_size": 3
+    },
+    "curve_fitting": {
+      "methods": ["linear", "polynomial", "exponential"],
+      "best_fit_selection": "r_squared"
+    }
+  },
+  
+  "reporting": {
+    "output_formats": ["json", "csv", "markdown"],
+    "generate_charts": true,
+    "chart_types": [
+      "latency_curve",
+      "throughput_curve",
+      "resource_usage_curve",
+      "success_rate_curve",
+      "multi_dimension_heatmap"
+    ],
+    "auto_generate_report": true
+  },
+  
+  "pass_criteria": {
+    "single_dimension": {
+      "min_success_rate": 0.95,
+      "max_p95_latency_ms": 1000,
+      "min_r_squared": 0.85,
+      "no_performance_regression": true
+    },
+    "combined_load": {
+      "min_success_rate": 0.90,
+      "max_p95_latency_ms": 2000,
+      "system_available": true
+    },
+    "curve_interpretability": {
+      "monotonicity_check": true,
+      "continuity_check": true,
+      "predictability_check": true,
+      "inflection_clarity": true
+    }
+  },
+  
+  "environment": {
+    "min_cpu_cores": 4,
+    "recommended_cpu_cores": 8,
+    "min_memory_gb": 8,
+    "recommended_memory_gb": 16,
+    "min_disk_gb": 20,
+    "recommended_disk_gb": 50,
+    "os": "Ubuntu 20.04+",
+    "node_version": "18+",
+    "network": "100Mbps minimum, 1Gbps recommended"
+  },
+  
+  "notes": [
+    "测试前请确保系统监控工具已正确配置",
+    "每个测试负载点后等待系统恢复再继续",
+    "确保磁盘空间充足以存储日志和结果",
+    "建议在隔离网络环境执行测试",
+    "测试完成后运行分析脚本生成报告"
+  ]
+}
