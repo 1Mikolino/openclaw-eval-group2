@@ -1,0 +1,118 @@
+{
+  "_comment": "OpenClaw 版本升级/降级/回滚性能测试 - 配置文件",
+  "name": "version-rollback-performance-test",
+  "description": "测试 OpenClaw 在版本升级、降级、回滚操作前后的性能一致性和资源异常",
+
+  "target": "ws://10.0.12.4:8080",
+  "duration": 300,
+  "interval": 100,
+  "messageType": "ping",
+
+  "reportInterval": 100,
+  "verbose": true,
+  "waitForWelcome": true,
+  "welcomeTimeout": 5000,
+  "reconnectOnDisconnect": true,
+  "maxReconnectAttempts": 10,
+  "reconnectInterval": 2000,
+
+  "passCriteria": {
+    "minSuccessRate": 95,
+    "maxAvgLatency": 200,
+    "maxP95Latency": 500,
+    "maxP99Latency": 1000,
+    "maxLatencyRegressionPercent": 20,
+    "maxMemoryRegressionPercent": 15,
+    "maxCpuRegressionPercent": 20,
+    "minThroughputRetentionPercent": 90,
+    "maxMemoryGrowthRateMBPerHour": 50,
+    "maxRollbackTimeSeconds": 30,
+    "maxUpgradeTimeSeconds": 60
+  },
+
+  "versionTest": {
+    "phases": [
+      {
+        "name": "baseline",
+        "version": "v2.0.0",
+        "description": "收集基准性能数据"
+      },
+      {
+        "name": "upgrade",
+        "version": "v3.0.0",
+        "fromVersion": "v2.0.0",
+        "description": "升级到新版并测试性能"
+      },
+      {
+        "name": "downgrade",
+        "version": "v1.2.0",
+        "fromVersion": "v3.0.0",
+        "description": "降级到旧版并测试性能"
+      },
+      {
+        "name": "rollback",
+        "version": "v2.0.0",
+        "fromVersion": "v3.0.0",
+        "description": "模拟故障回滚并测试性能恢复"
+      }
+    ],
+    "rollbackMode": true,
+    "preserveData": true,
+    "checkCompatibility": true
+  },
+
+  "environment": {
+    "memory": "8GB+",
+    "cpu": "4 cores+",
+    "disk": "10GB+ free",
+    "os": "Ubuntu 20.04+",
+    "network": "stable internal"
+  },
+
+  "monitoring": {
+    "checkInterval": 30,
+    "logMetrics": true,
+    "metricsOutputPath": "~/version_test/metrics.json",
+    "captureVersionInfo": true,
+    "captureResourceUsage": true,
+    "trackMemoryTrend": true
+  },
+
+  "alerts": {
+    "onMemoryHigh": true,
+    "memoryThresholdPercent": 75,
+    "onLatencySpike": true,
+    "latencySpikeMultiplier": 3,
+    "onDisconnect": true,
+    "onPerformanceRegression": true,
+    "regressionThresholdPercent": 20
+  },
+
+  "comparison": {
+    "baselineMetrics": [
+      "avgLatency",
+      "p95Latency",
+      "p99Latency",
+      "successRate",
+      "memoryUsage",
+      "cpuUsage",
+      "throughput"
+    ],
+    "allowableRegression": {
+      "avgLatency": 20,
+      "p95Latency": 30,
+      "p99Latency": 50,
+      "successRate": -5,
+      "memoryUsage": 15,
+      "cpuUsage": 20,
+      "throughput": -10
+    }
+  },
+
+  "reports": {
+    "generateComparisonReport": true,
+    "reportOutputPath": "~/version_test/report.md",
+    "includeCharts": true,
+    "trackIssues": true
+  }
+}
