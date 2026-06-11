@@ -1,0 +1,55 @@
+{
+  "test_case": {
+    "id": "TC-WEBTOOLS-001",
+    "name": "Web-Tools-Guide Skill 稳定性测试",
+    "description": "检验 web-tools-guide skill 在高频调用下的稳定性，监测 CPU、内存、响应时间等指标",
+    "version": "1.0.0",
+    "category": "skill_stability",
+    "priority": "high",
+    "tags": ["skill", "web-tools-guide", "stability", "memory", "cpu"]
+  },
+  "target_skill": "web-tools-guide",
+  "test_scenarios": [
+    {
+      "name": "web_search_decision",
+      "description": "测试搜索场景下的工具选择决策",
+      "keywords": ["OpenClaw documentation", "最新AI助手评测", "GitHub API 文档"],
+      "expected_tool": "web_search"
+    },
+    {
+      "name": "web_fetch_decision", 
+      "description": "测试已知URL场景下的页面获取决策",
+      "urls": [
+        "https://docs.openclaw.ai",
+        "https://github.com/openclaw/openclaw",
+        "https://clawhub.ai"
+      ],
+      "expected_tool": "web_fetch"
+    },
+    {
+      "name": "opencli_fallback",
+      "description": "测试 opencli 作为 fallback 的场景",
+      "sites": ["github", "youtube", "twitter", "reddit"],
+      "expected_tool": "opencli"
+    },
+    {
+      "name": "browser_fallback",
+      "description": "测试 browser 作为最后兜底的场景",
+      "actions": ["snapshot", "navigate", "click", "scroll"],
+      "expected_tool": "browser"
+    }
+  ],
+  "thresholds": {
+    "memory_warning": 85,
+    "memory_critical": 95,
+    "cpu_warning": 80,
+    "cpu_critical": 95,
+    "max_response_time_ms": 2000,
+    "min_success_rate": 0.95
+  },
+  "stress_parameters": {
+    "duration_sec": 300,
+    "max_iterations": 1000,
+    "concurrent_users": 5
+  }
+}
