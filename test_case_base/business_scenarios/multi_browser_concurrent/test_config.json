@@ -1,0 +1,67 @@
+{
+  "test_case": {
+    "id": "TC-BROWSER-001",
+    "name": "多浏览器并发压力测试",
+    "description": "模拟真实业务场景中的多浏览器并发，监测系统资源占用和崩溃临界点",
+    "version": "1.0.0",
+    "category": "performance",
+    "priority": "high",
+    "tags": ["browser", "concurrent", "stress", "memory", "cpu"]
+  },
+  "environment": {
+    "minimum_requirements": {
+      "cpu_cores": 2,
+      "memory_gb": 4,
+      "disk_gb": 10
+    },
+    "recommended_requirements": {
+      "cpu_cores": 4,
+      "memory_gb": 8,
+      "disk_gb": 20
+    }
+  },
+  "test_parameters": {
+    "max_concurrent_browsers": {
+      "description": "最大并发浏览器数量",
+      "default": 20,
+      "range": [5, 50],
+      "step": 5
+    },
+    "browser_start_delay": {
+      "description": "浏览器启动间隔(秒)",
+      "default": 2,
+      "unit": "seconds"
+    },
+    "test_duration_per_browser": {
+      "description": "每个浏览器测试时长",
+      "default": 60,
+      "unit": "seconds"
+    },
+    "monitor_interval": {
+      "description": "资源监控采样间隔",
+      "default": 1,
+      "unit": "seconds"
+    }
+  },
+  "thresholds": {
+    "memory_warning": 85,
+    "memory_critical": 95,
+    "cpu_warning": 80,
+    "cpu_critical": 95
+  },
+  "expected_results": {
+    "success_criteria": [
+      "系统在配置的并发数下稳定运行",
+      "无内存泄漏（内存增长率 < 20MB/分钟）",
+      "无浏览器进程崩溃",
+      "响应时间在可接受范围内"
+    ],
+    "metrics_to_collect": [
+      "CPU使用率（峰值、平均）",
+      "内存使用率（峰值、平均、增长趋势）",
+      "浏览器进程数量",
+      "系统负载",
+      "崩溃时的浏览器数量（如发生）"
+    ]
+  }
+}
