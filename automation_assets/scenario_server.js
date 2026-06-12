@@ -1,12 +1,12 @@
 /**
  * OpenClaw Test Scenario Server
  * 小龙虾 - 测试执行服务端
- * 支持调用各种测试用例：browser_concurrent, skill_stress, web_tools_guide等
+ * 支持调用各种测试用例：自动扫描 test_case_base/business_scenarios 目录
  * 
  * Usage: node scenario_server.js [--port=9877]
  * 
  * @author OpenClaw Eval Group 2
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 const WebSocket = require('ws');
@@ -22,6 +22,9 @@ const CONFIG = {
   testCasesDir: path.join(__dirname, '..', 'test_case_base', 'business_scenarios'),
   workspaceDir: '/root/.openclaw/workspace'
 };
+
+// 测试用例注册表（动态扫描生成）
+let TEST_CASES = {};
 
 // 解析命令行参数
 function parseArgs() {
@@ -53,30 +56,63 @@ function getSystemMetrics() {
   };
 }
 
-// 测试用例注册表
-const TEST_CASES = {
-  'browser_concurrent': {
-    name: '多浏览器并发测试',
-    description: '模拟多浏览器并发，监测系统崩溃临界点',
-    script: 'multi_browser_concurrent/multi_browser_concurrent_test.py',
-    type: 'python',
-    params: ['--max_browsers', '--duration']
-  },
-  'skill_stress': {
-    name: '技能压力测试',
-    description: 'Top 10技能压力测试，监测CPU/内存占用',
-    script: 'skill_stress/skill_stress_test.py',
-    type: 'python',
-    params: ['--workers', '--iterations']
-  },
-  'web_tools_guide': {
-    name: 'Web-Tools-Guide稳定性测试',
-    description: '检验web-tools-guide skill稳定性',
-    script: 'web_tools_guide_stability/web_tools_guide_stability_test.py',
-    type: 'python',
-    params: ['--duration', '--output']
+// 自动扫描测试用例目录
+function autoDiscoverTestCases() {
+  const testCases = {};
+  
+  if (!fs.existsSync(CONFIG.testCasesDir)) {
+    console.error(`❌ Test cases directory not found: ${CONFIG.testCasesDir}`);
+    return testCases;
   }
-};
+  
+  const entries = fs.readdirSync(CONFIG.testCasesDir);
+  
+  entries.forEach(entry => {
+    const entryPath = path.join(CONFIG.testCasesDir, entry);
+    
+    // 只处理目录
+    if (!fs.statSync(entryPath).isDirectory()) {
+      return;
+    }
+    
+    // 查找 *_test.py 文件
+    const files = fs.readdirSync(entryPath);
+    const testFile = files.find(f => f.endsWith('_test.py'));
+    const configFile = files.find(f => f === 'test_config.json');
+    
+    if (testFile) {
+      const scenarioId = entry; // 使用目录名作为 scenario ID
+      const configPath = path.join(entryPath, configFile || '');
+      
+      let config = {};
+      if (configFile && fs.existsSync(configPath)) {
+        try {
+          config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        } catch (e) {
+          console.error(`⚠️  Failed to parse ${configFile}: ${e.message}`);
+        }
+      }
+      
+      // 从 test_config.json 中提取参数名
+      const params = [];
+      if (config.test_config) {
+        params.push(...Object.keys(config.test_config));
+      }
+      
+      testCases[scenarioId] = {
+        name: config.test_name || config.name || scenarioId,
+        description: config.description || `Test case: ${scenarioId}`,
+        script: `${entry}/${testFile}`,
+        type: 'python',
+        params: params
+      };
+      
+      console.log(`   ✓ ${scenarioId}: ${testFile}`);
+    }
+  });
+  
+  return testCases;
+}
 
 // 当前运行的测试
 let currentTest = null;
@@ -106,13 +142,18 @@ async function runTestCase(testId, scenario, params, ws) {
 
   console.log(`[Test] Starting ${scenario} with params:`, params);
 
-  // 构建命令行参数
+  // 构建命令行参数（支持 test_config.json 中的参数）
   const args = [];
-  if (params.max_browsers) args.push(String(params.max_browsers));
-  if (params.duration) args.push(`--duration=${params.duration}`);
-  if (params.workers) args.push(`--workers=${params.workers}`);
-  if (params.iterations) args.push(`--iterations=${params.iterations}`);
-  if (params.output) args.push(params.output);
+  
+  // 动态参数传递
+  if (params && typeof params === 'object') {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        // 支持 --key=value 格式
+        args.push(`--${key}=${value}`);
+      }
+    });
+  }
 
   // 启动测试进程
   const testProcess = spawn('python3', [scriptPath, ...args], {
@@ -158,7 +199,7 @@ async function runTestCase(testId, scenario, params, ws) {
       currentTest.endTime = Date.now();
       
       // 尝试读取结果文件
-      let resultFile = params.output;
+      let resultFile = params && params.output;
       if (!resultFile && output.includes('报告已保存')) {
         const match = output.match(/报告已保存[:：]\s*(.+)/);
         if (match) resultFile = match[1].trim();
@@ -216,7 +257,7 @@ function parseRealtimeMetrics(line) {
 function createServer(port) {
   const wss = new WebSocket.Server({ port, host: CONFIG.host });
 
-  console.log(`🦞 Scenario Server v1.0.0`);
+  console.log(`🦞 Scenario Server v1.1.0 (Auto-scan enabled)`);
   console.log(`   Listening on ws://${CONFIG.host}:${port}`);
   console.log(`   Test cases dir: ${CONFIG.testCasesDir}`);
   console.log(`   Supported scenarios: ${Object.keys(TEST_CASES).join(', ')}`);
@@ -230,7 +271,7 @@ function createServer(port) {
     ws.send(JSON.stringify({
       type: 'welcome',
       server: 'OpenClaw Scenario Server',
-      version: '1.0.0',
+      version: '1.1.0',
       scenarios: Object.entries(TEST_CASES).map(([key, val]) => ({
         id: key,
         name: val.name,
@@ -349,18 +390,12 @@ function main() {
   const args = parseArgs();
   const port = parseInt(args.port) || CONFIG.port;
 
-  // 检查测试用例目录是否存在
-  if (!fs.existsSync(CONFIG.testCasesDir)) {
-    console.error(`❌ Test cases directory not found: ${CONFIG.testCasesDir}`);
-    process.exit(1);
-  }
-
   console.log('📂 Scanning test cases...');
-  Object.entries(TEST_CASES).forEach(([key, val]) => {
-    const scriptPath = path.join(CONFIG.testCasesDir, val.script);
-    const exists = fs.existsSync(scriptPath);
-    console.log(`   ${exists ? '✓' : '✗'} ${key}: ${val.script}`);
-  });
+  TEST_CASES = autoDiscoverTestCases();
+  
+  if (Object.keys(TEST_CASES).length === 0) {
+    console.warn('⚠️  No test cases found!');
+  }
 
   const server = createServer(port);
 
