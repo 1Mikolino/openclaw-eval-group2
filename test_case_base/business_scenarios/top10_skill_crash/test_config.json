@@ -1,0 +1,54 @@
+{
+  "test_case": {
+    "id": "TC-TOP10-CRASH-001",
+    "name": "Top 10 Skills 高并发崩溃测试",
+    "description": "高并发、高频度调用 Top 10 插件，监测 CPU 和内存变化，测试 OpenClaw 服务器崩溃临界点",
+    "version": "1.0.0",
+    "category": "crash_test",
+    "priority": "critical",
+    "tags": ["crash", "stress", "concurrent", "top10", "memory", "cpu", "stability"]
+  },
+  "target_skills": [
+    {"name": "web-tools-guide", "weight": 25, "complexity": "high"},
+    {"name": "browser", "weight": 20, "complexity": "high"},
+    {"name": "github", "weight": 15, "complexity": "medium"},
+    {"name": "file-ops", "weight": 10, "complexity": "low"},
+    {"name": "memory", "weight": 8, "complexity": "medium"},
+    {"name": "sessions", "weight": 7, "complexity": "medium"},
+    {"name": "message", "weight": 5, "complexity": "low"},
+    {"name": "github-analysis", "weight": 4, "complexity": "high"},
+    {"name": "search", "weight": 3, "complexity": "medium"},
+    {"name": "weather", "weight": 3, "complexity": "low"}
+  ],
+  "crash_thresholds": {
+    "memory_critical": 95,
+    "cpu_critical": 98,
+    "min_available_memory_mb": 100,
+    "max_response_time_ms": 10000
+  },
+  "load_stages": [
+    {"stage": 1, "concurrent": 10, "duration_sec": 30, "description": "轻度负载"},
+    {"stage": 2, "concurrent": 50, "duration_sec": 60, "description": "中度负载"},
+    {"stage": 3, "concurrent": 100, "duration_sec": 120, "description": "重度负载"},
+    {"stage": 4, "concurrent": 200, "duration_sec": 300, "description": "极限负载"},
+    {"stage": 5, "concurrent": 500, "duration_sec": 600, "description": "崩溃测试"}
+  ],
+  "monitoring": {
+    "metrics": [
+      "cpu_percent",
+      "memory_percent",
+      "memory_used_mb",
+      "memory_available_mb",
+      "process_memory_mb",
+      "active_threads",
+      "system_load"
+    ],
+    "sample_interval_ms": 500,
+    "alert_on_crash": true
+  },
+  "expected_behavior": {
+    "description": "测试应逐步增加负载直至系统达到崩溃临界点或完成所有阶段",
+    "success_criteria": "收集到完整的性能数据和崩溃临界点信息",
+    "failure_criteria": "系统在预期负载前意外崩溃或无法恢复"
+  }
+}
