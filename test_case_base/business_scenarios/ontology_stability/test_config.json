@@ -1,0 +1,73 @@
+{
+  "test_name": "ontology_skill_stability_test",
+  "version": "1.0.0",
+  "description": "Ontology Skill 稳定性测试 - 监测运行skill时CPU和内存占用情况",
+  "author": "OpenClaw Eval Group 2",
+  
+  "test_config": {
+    "duration_sec": 60,
+    "max_iterations": 1000,
+    "memory_threshold": 90,
+    "cpu_threshold": 80,
+    "monitor_interval": 1
+  },
+  
+  "test_scenarios": [
+    {
+      "name": "entity_extraction",
+      "description": "实体提取测试",
+      "weight": 0.25
+    },
+    {
+      "name": "relationship_mapping", 
+      "description": "关系映射测试",
+      "weight": 0.25
+    },
+    {
+      "name": "knowledge_query",
+      "description": "知识库查询测试",
+      "weight": 0.25
+    },
+    {
+      "name": "ontology_validation",
+      "description": "本体验证测试",
+      "weight": 0.15
+    },
+    {
+      "name": "inference_reasoning",
+      "description": "推理测试",
+      "weight": 0.10
+    }
+  ],
+  
+  "monitoring": {
+    "metrics": [
+      "cpu_percent",
+      "memory_percent",
+      "memory_used_mb",
+      "memory_available_mb",
+      "response_time_ms"
+    ],
+    "alert_conditions": {
+      "memory_high": {
+        "threshold": 90,
+        "severity": "warning"
+      },
+      "cpu_high": {
+        "threshold": 80,
+        "severity": "warning"
+      },
+      "response_time_high": {
+        "threshold": 2000,
+        "severity": "warning",
+        "unit": "ms"
+      }
+    }
+  },
+  
+  "expected_results": {
+    "min_success_rate": 0.95,
+    "max_avg_response_time_ms": 1000,
+    "max_memory_growth_mb": 100
+  }
+}
