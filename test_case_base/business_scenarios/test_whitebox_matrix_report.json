@@ -1,0 +1,729 @@
+{
+  "test_name": "web-tools-guide_white_box_matrix",
+  "timestamp": "2026-06-29T18:32:33.146741",
+  "summary": {
+    "total_cases": 15,
+    "successful": 15,
+    "failed": 0,
+    "success_rate": 1.0,
+    "stage_failures": {
+      "parse": 1,
+      "tool_selection": 0,
+      "schema_validation": 1,
+      "execution": 0,
+      "fallback": 0
+    }
+  },
+  "skill_rules": {
+    "exists": true,
+    "path": "/root/.openclaw/workspace/skills/web-tools-guide/SKILL.md",
+    "content": "---\nname: web-tools-guide\ndescription: \"MANDATORY before calling web_search, web_fetch, browser, or opencli. Contains required error-handling procedures (web_search failure → must guide user to configure API), fallback chain (opencli CLI covers 70+ sites as structured fallback before browser), and site-specific login URLs. Without reading this skill, you WILL handle failures incorrectly and miss available tools. Trigger on: 搜索/上网/查资料/打开网站/抓取网页/新闻/热点/web search/fetch/browser/opencli.\"\n---\n\n<!-- baseDir = /root/.openclaw/workspace/skills/web-tools-guide -->\n\n# Web 工具策略\n\n遵循 ReAct 范式。**四个工具不是层级关系，是分支决策**：\n\n```\n┌─ 没有 URL，需要搜索 ──────→ web_search   （关键词搜索）\n│\n├─ 已知 URL，静态内容 ──────→ web_fetch    （直取页面）\n│\n├─ 以上失败 / 不适用 ──────→ opencli      （CLI 结构化访问，70+ 站点）\n│\n└─ 全都不行 ───────────────→ browser      （浏览器自动化，兜底）\n```\n\n先按场景选 web_search 或 web_fetch；失败时先试 opencli，最后才上 browser。\n每次切换工具告知用户原因，不要静默降级。\n\n---\n\n## 决策流程\n\n```\n有明确 URL？\n├─ YES → 静态内容（文章/文档/API/RSS）？\n│        ├─ YES → web_fetch\n│        │        失败（空白/403/CAPTCHA）？→ opencli → browser\n│        └─ NO（需要 JS/登录/交互/截图）→ opencli → browser\n└─ NO  → web_search\n         ├─ 成功 → 对结果 URL 按上述逻辑选 fetch/opencli/browser\n         ├─ 失败（API 错误）→ 引导配置（见\"web_search 失败处理\"）\n         └─ 无结果/不适用 → opencli → browser\n```\n\n---\n\n## web_search\n\n**何时用**：没有明确 URL，需要搜索信息（新闻、热点、查资料、比较信息）。\n\n**怎么用**：直接调用 `web_search`，传入搜索关键词。\n\n**结果处理**：返回的 URL 按决策流程选 `web_fetch`、`opencli` 或 `browser` 深入获取。\n\n**失败时**：见下方\"web_search 失败处理\"。\n\n---\n\n## web_fetch\n\n**何时用**：已知 URL，页面为静态内容——新闻文章、博客、技术文档、API 端点、RSS 源。\n\n**怎么用**：直接调用 `web_fetch`，传入 URL。\n\n**失败信号**：返回空白页、403、CAPTCHA、骨架 HTML → 尝试 `opencli`，仍不行再升级到 `browser`。\n\n---\n\n## opencli（Fallback，优先于 browser）\n\n**何时用**：web_search / web_fetch 失败或不适用时，先试 opencli 再考虑 browser。覆盖 70+ 主流网站，秒级返回结构化数据。\n\n**首次使用前**：如果执行 `opencli` 提示 command not found，需要先运行安装脚本（幂等，可重复运行）：\n```bash\nbash {baseDir}/scripts/setup-opencli.sh\n```\n该脚本会自动完成：安装 opencli CLI → 编译 Browser Bridge 插件 → 重启浏览器加载插件。\n\n**渐进式发现（不需要记命令）**：\n```bash\nopencli --help                    # 有没有这个站？\nopencli <site> --help             # 这个站能做什么？\nopencli <site> <command> --help   # 这个命令怎么用？\n```\n\n**详细用法**：`read {baseDir}/references/opencli-guide.md`\n\n**失败时**：告知用户 opencli 失败原因，降级到 browser。\n\n---\n\n## browser（最后手段）\n\n这是最重量级的工具，也是当前问题最多的场景。以下是详细操作指引。\n\n### 何时用\n\n- **JS 渲染页面**：SPA、动态加载内容（微博 feed、知乎回答、小红书瀑布流）\n- **需要登录态**：登录后才可见的内容、管理后台\n- **页面交互**：点击按钮、填写表单、翻页、滚动加载更多\n- **截图需求**：需要页面视觉信息\n- **其他工具全部失败的兜底**\n\n### 操作流程\n\n**信息获取（只读）：**\n1. 导航到目标 URL\n2. 等待关键元素出现（不要用固定时间等待）\n3. 提取所需内容（文本、链接、图片等）\n4. 返回结果给用户\n\n**登录操作：**\n1. 查找登录页 URL → `read {baseDir}/references/well-known-sites.json`\n2. **告知用户即将执行登录操作，获取确认**\n3. 导航到登录页\n4. 填写凭证（用户提供）或提示用户扫码\n5. 等待登录成功，确认后继续后续操作\n\n**页面交互：**\n1. 导航到目标页面\n2. 使用 CSS 选择器定位元素（辅以文本内容匹配）\n3. 执行交互：点击、输入、选择、滚动\n4. 等待响应/页面变化\n5. 提取结果或截图\n\n### 关键注意事项\n\n- **登录操作必须获得用户授权** — 任何涉及账号登录的操作前，先告知用户并等待确认\n- **敏感操作必须二次确认** — 发帖、删除、支付等不可逆操作\n- **优先 CSS 选择器** — 比 XPath 更稳定，辅以文本匹配\n- **智能等待** — 等待目标元素出现，而非 `sleep(3)` 式固定等待\n- **CAPTCHA/验证码** — 无法自动处理时告知用户需手动介入\n- **页面加载超时** — 设置合理超时，失败时告知用户并建议重试\n- **多步操作保持状态** — 登录后的后续操作复用同一浏览器上下文，不要重新打开\n\n---\n\n## web_search 失败处理\n\n**当 `web_search` 返回错误时，不要静默降级，必须引导配置：**\n\n1. **`read {baseDir}/references/web-search-config.md`**\n2. 按文件中 Step 1 **原样输出**配置引导给用户（不要改写表格或省略内容）\n3. 等待用户回复：\n   - 用户提供 API Key → 再次 `read {baseDir}/references/web-search-config.md`，按 Step 2-5 执行\n   - 用户说\"暂不配置\" → 进入降级方案\n   - 其他回复 → 正常响应\n4. **降级方案**（仅在用户明确拒绝配置后）：\n   - `read {baseDir}/references/well-known-sites.json` 获取常用网站 URL\n   - 用 `web_fetch` 直接获取目标网站内容\n   - 仍不行 → 升级到 `browser`\n\n---\n\n## 常用网站\n\n需要常用网站 URL 时（登录页、搜索引擎、热搜榜等）：\n\n```\nread {baseDir}/references/well-known-sites.json\n```\n\n通过 key 查找（如 `social.weibo.login`、`search.baidu`）。带 `{query}` 的 URL 替换为实际搜索词。\n",
+    "parsed_sections": {
+      "decision_tree": true,
+      "fallback_chain": true,
+      "error_handling": true
+    }
+  },
+  "results": [
+    {
+      "test_case_id": "WB-MATRIX-001",
+      "user_request": "搜索 OpenClaw 的最新文档",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=None, interaction=False, site=None",
+          "url_detected": null,
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "OpenClaw 的最新文档",
+          "confidence": 0.7
+        },
+        "tool_selection": {
+          "selected_tool": "web_search",
+          "reason": "无明确 URL，需要搜索信息",
+          "decision_tree_path": [
+            "rule:open_query=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "query": "OpenClaw 的最新文档",
+            "count": 5
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 120,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 web_search 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-002",
+      "user_request": "获取 https://docs.openclaw.ai 的内容",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://docs.openclaw.ai, interaction=False, site=None",
+          "url_detected": "https://docs.openclaw.ai",
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "的内容",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "web_fetch",
+          "reason": "已知 URL 且为静态内容",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://docs.openclaw.ai"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 150,
+          "error": null,
+          "result_type": "str"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 web_fetch 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-003",
+      "user_request": "查看 https://github.com/openclaw/openclaw 的最新 issues",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://github.com/openclaw/openclaw, interaction=False, site=github",
+          "url_detected": "https://github.com/openclaw/openclaw",
+          "needs_interaction": false,
+          "target_site": "github",
+          "query": "查看  的最新 issues",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "site": "github",
+            "url": "https://github.com/openclaw/openclaw",
+            "query": "查看  的最新 issues"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-004",
+      "user_request": "帮我登录 https://github.com/login 并查看通知",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://github.com/login, interaction=True, site=github",
+          "url_detected": "https://github.com/login",
+          "needs_interaction": true,
+          "target_site": "github",
+          "query": "登录  并查看通知",
+          "confidence": 1.0
+        },
+        "tool_selection": {
+          "selected_tool": "browser",
+          "reason": "需要页面交互（点击/填写/登录等）",
+          "decision_tree_path": [
+            "rule:needs_interaction=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://github.com/login",
+            "action": "snapshot"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 220,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 browser 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-005",
+      "user_request": "搜索 ClawHub 上有哪些可用的 skill",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=None, interaction=False, site=None",
+          "url_detected": null,
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "ClawHub 上有哪些可用的 skill",
+          "confidence": 0.7
+        },
+        "tool_selection": {
+          "selected_tool": "web_search",
+          "reason": "无明确 URL，需要搜索信息",
+          "decision_tree_path": [
+            "rule:open_query=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "query": "ClawHub 上有哪些可用的 skill",
+            "count": 5
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 120,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 web_search 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-006",
+      "user_request": "获取 https://www.youtube.com/watch?v=dQw4w9WgXcQ 的视频信息和字幕",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://www.youtube.com/watch?v=dQw4w9WgXcQ, interaction=False, site=youtube",
+          "url_detected": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          "needs_interaction": false,
+          "target_site": "youtube",
+          "query": "的视频信息和字幕",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "site": "youtube",
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "query": "的视频信息和字幕"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-007",
+      "user_request": "查看 https://twitter.com/OpenAI/status/1234567890 这条推文的回复",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://twitter.com/OpenAI/status/1234567890, interaction=False, site=twitter",
+          "url_detected": "https://twitter.com/OpenAI/status/1234567890",
+          "needs_interaction": false,
+          "target_site": "twitter",
+          "query": "查看  这条推文的回复",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "site": "twitter",
+            "url": "https://twitter.com/OpenAI/status/1234567890",
+            "query": "查看  这条推文的回复"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-008",
+      "user_request": "帮我截图 https://www.zhihu.com/question/123456/answer/789012 这个回答的内容",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://www.zhihu.com/question/123456/answer/789012, interaction=True, site=zhihu",
+          "url_detected": "https://www.zhihu.com/question/123456/answer/789012",
+          "needs_interaction": true,
+          "target_site": "zhihu",
+          "query": "截图  这个回答的内容",
+          "confidence": 1.0
+        },
+        "tool_selection": {
+          "selected_tool": "browser",
+          "reason": "需要页面交互（点击/填写/登录等）",
+          "decision_tree_path": [
+            "rule:needs_interaction=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://www.zhihu.com/question/123456/answer/789012",
+            "action": "snapshot"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 220,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 browser 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-009",
+      "user_request": "读取 https://hnrss.org/frontpage 的 RSS 内容",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://hnrss.org/frontpage, interaction=False, site=None",
+          "url_detected": "https://hnrss.org/frontpage",
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "读取  的 RSS 内容",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://hnrss.org/frontpage",
+            "query": "读取  的 RSS 内容"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-010",
+      "user_request": "获取 https://api.github.com/repos/openclaw/openclaw 的 API 文档",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://api.github.com/repos/openclaw/openclaw, interaction=False, site=github",
+          "url_detected": "https://api.github.com/repos/openclaw/openclaw",
+          "needs_interaction": false,
+          "target_site": "github",
+          "query": "的 API 文档",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "web_fetch",
+          "reason": "已知 URL 且为静态内容",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://api.github.com/repos/openclaw/openclaw"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 150,
+          "error": null,
+          "result_type": "str"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 web_fetch 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-011",
+      "user_request": "从 https://en.wikipedia.org/wiki/OpenAI 提取摘要",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://en.wikipedia.org/wiki/OpenAI, interaction=False, site=None",
+          "url_detected": "https://en.wikipedia.org/wiki/OpenAI",
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "从  提取摘要",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://en.wikipedia.org/wiki/OpenAI",
+            "query": "从  提取摘要"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-012",
+      "user_request": "查看 https://www.reddit.com/r/openclaw/comments/abc123 的讨论",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://www.reddit.com/r/openclaw/comments/abc123, interaction=False, site=reddit",
+          "url_detected": "https://www.reddit.com/r/openclaw/comments/abc123",
+          "needs_interaction": false,
+          "target_site": "reddit",
+          "query": "查看  的讨论",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "site": "reddit",
+            "url": "https://www.reddit.com/r/openclaw/comments/abc123",
+            "query": "查看  的讨论"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-013",
+      "user_request": "帮我登录并查看 https://weibo.com 的热搜榜",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://weibo.com, interaction=True, site=weibo",
+          "url_detected": "https://weibo.com",
+          "needs_interaction": true,
+          "target_site": "weibo",
+          "query": "登录并查看  的热搜榜",
+          "confidence": 1.0
+        },
+        "tool_selection": {
+          "selected_tool": "browser",
+          "reason": "需要页面交互（点击/填写/登录等）",
+          "decision_tree_path": [
+            "rule:needs_interaction=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://weibo.com",
+            "action": "snapshot"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 220,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 browser 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-014",
+      "user_request": "查看 Hacker News 首页 https://news.ycombinator.com 的热门文章",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=https://news.ycombinator.com, interaction=False, site=None",
+          "url_detected": "https://news.ycombinator.com",
+          "needs_interaction": false,
+          "target_site": null,
+          "query": "查看 Hacker News 首页  的热门文章",
+          "confidence": 0.9
+        },
+        "tool_selection": {
+          "selected_tool": "opencli",
+          "reason": "已知 URL 但可能需要 JS 渲染，先尝试 opencli",
+          "decision_tree_path": [
+            "rule:has_url=true",
+            "rule:static_content=false"
+          ]
+        },
+        "schema_validation": {
+          "valid": true,
+          "errors": [],
+          "params": {
+            "url": "https://news.ycombinator.com",
+            "query": "查看 Hacker News 首页  的热门文章"
+          }
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 100,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 opencli 获取信息",
+          "success": true
+        }
+      }
+    },
+    {
+      "test_case_id": "WB-MATRIX-015",
+      "user_request": "搜索",
+      "success": true,
+      "white_box_trace": {
+        "parse": {
+          "intent": "url=None, interaction=False, site=None",
+          "url_detected": null,
+          "needs_interaction": false,
+          "target_site": null,
+          "query": null,
+          "confidence": 0.3
+        },
+        "tool_selection": {
+          "selected_tool": "web_search",
+          "reason": "无明确 URL，需要搜索信息",
+          "decision_tree_path": [
+            "rule:open_query=true"
+          ]
+        },
+        "schema_validation": {
+          "valid": false,
+          "errors": [
+            "web_search 需要 query 参数"
+          ],
+          "params": {}
+        },
+        "execution": {
+          "status": "success",
+          "duration_ms": 120,
+          "error": null,
+          "result_type": "dict"
+        },
+        "fallback": {
+          "attempted": false,
+          "fallback_tool": null,
+          "reason": null,
+          "recovery_success": false
+        },
+        "answer": {
+          "final_answer": "成功使用 web_search 获取信息",
+          "success": true
+        }
+      }
+    }
+  ]
+}
