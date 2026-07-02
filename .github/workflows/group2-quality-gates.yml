@@ -1,0 +1,206 @@
+name: Group2 Quality Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      gate_group:
+        description: "门禁组选择"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - business
+          - performance
+          - bs-001
+          - bs-002
+          - bs-003
+          - bs-004
+          - ps-001
+          - ps-002
+          - ps-003
+          - ps-004
+          - ps-005
+          - ps-006
+      ref:
+        description: "待测版本分支/SHA"
+        required: true
+        type: string
+
+  schedule:
+    # 每天凌晨2点运行全量门禁
+    - cron: "0 2 * * *"
+
+env:
+  TEST_CASE_REPO: "https://github.com/1Mikolino/openclaw-eval-group2.git"
+  TEST_CASE_BRANCH: "main"
+
+jobs:
+  # 阶段1：业务场景门禁
+  business_scenario_gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    if: contains(fromJSON('["all","business","bs-001","bs-002","bs-003","bs-004","bs-005"]'), inputs.gate_group)
+    strategy:
+      matrix:
+        gate:
+          - id: bs-001
+            name: 编码开发能力测试
+            path: business_scenarios/coding_test_case
+          - id: bs-002
+            name: 多浏览器并发测试
+            path: business_scenarios/multi_browser_concurrent
+          - id: bs-003
+            name: Top10 Skill崩溃测试
+            path: business_scenarios/top10_skill_crash
+          - id: bs-004
+            name: Web工具指南测试
+            path: business_scenarios/web-tools-guide
+      fail-fast: false
+    name: ${{ matrix.gate.name }}
+    steps:
+      - name: Checkout OpenClaw
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout Test Cases
+        run: |
+          git clone --depth 1 --branch ${{ env.TEST_CASE_BRANCH }} ${{ env.TEST_CASE_REPO }} test_cases
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Dependencies
+        run: |
+          npm install
+          cd test_cases && npm install
+
+      - name: Run ${{ matrix.gate.name }}
+        id: run_gate
+        run: |
+          echo "运行门禁: ${{ matrix.gate.name }}"
+          echo "测试用例路径: test_cases/${{ matrix.gate.path }}"
+
+          # 执行测试（这里需要根据实际测试框架调整）
+          python scripts/run_business_scenario_test.py \
+            --gate-id ${{ matrix.gate.id }} \
+            --test-path test_cases/${{ matrix.gate.path }} \
+            --output results/${{ matrix.gate.id }}.json
+
+      - name: Check Gate Result
+        run: |
+          python scripts/check_gate_result.py \
+            --result results/${{ matrix.gate.id }}.json \
+            --gate-config group2-gate-config.json
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: business-gate-${{ matrix.gate.id }}-results
+          path: results/${{ matrix.gate.id }}.json
+
+  # 阶段2：性能稳定性门禁
+  performance_stability_gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 600
+    if: contains(fromJSON('["all","performance","ps-001","ps-002","ps-003","ps-004","ps-005","ps-006"]'), inputs.gate_group)
+    strategy:
+      matrix:
+        gate:
+          - id: ps-001
+            name: 24小时稳定性测试
+            config: performance_case/24h-stability-config.json
+          - id: ps-002
+            name: 内存泄漏检测
+            config: performance_case/memory-leak-config.json
+          - id: ps-003
+            name: OOM风险评估
+            config: performance_case/oom-risk-config.json
+          - id: ps-004
+            name: 心跳峰值测试
+            config: performance_case/heartbeat-spike-config.json
+          - id: ps-005
+            name: 多维度并发测试
+            config: performance_case/multi-dim-concurrency-config.json
+          - id: ps-006
+            name: 版本回滚性能测试
+            config: performance_case/version-rollback-base-config.json
+      fail-fast: false
+    name: ${{ matrix.gate.name }}
+    steps:
+      - name: Checkout OpenClaw
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout Test Cases
+        run: |
+          git clone --depth 1 --branch ${{ env.TEST_CASE_BRANCH }} ${{ env.TEST_CASE_REPO }} test_cases
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Dependencies
+        run: |
+          npm install
+          pip install psutil matplotlib  # 性能测试依赖
+
+      - name: Run ${{ matrix.gate.name }}
+        id: run_gate
+        run: |
+          echo "运行门禁: ${{ matrix.gate.name }}"
+
+          # 执行性能测试
+          python scripts/run_performance_test.py \
+            --gate-id ${{ matrix.gate.id }} \
+            --config test_cases/${{ matrix.gate.config }} \
+            --output results/${{ matrix.gate.id }}.json
+
+      - name: Check Gate Result
+        run: |
+          python scripts/check_gate_result.py \
+            --result results/${{ matrix.gate.id }}.json \
+            --gate-config group2-gate-config.json
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-gate-${{ matrix.gate.id }}-results
+          path: results/${{ matrix.gate.id }}.json
+
+  # 生成门禁报告
+  generate_gate_report:
+    runs-on: ubuntu-24.04
+    needs: [business_scenario_gates, performance_stability_gates]
+    if: always()
+    steps:
+      - name: Download All Results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-results
+
+      - name: Generate Gate Report
+        run: |
+          python scripts/generate_gate_report.py \
+            --results-dir all-results \
+            --config group2-gate-config.json \
+            --output gate-report.md
+
+      - name: Publish Gate Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: group2-gate-report
+          path: gate-report.md
+
+      - name: Notify Team
+        if: failure()
+        run: |
+          echo "第2组质量门禁失败，请检查报告"
+          # 发送通知（企业微信/邮件等）
